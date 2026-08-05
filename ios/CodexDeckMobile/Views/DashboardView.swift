@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardView: View {
   @Environment(DashboardStore.self) private var store
   @Environment(\.verticalSizeClass) private var verticalSizeClass
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var resetConfirmation = false
   @State private var showingAllKeys = false
   @State private var editingKeySlot: DeviceKeySlot?
@@ -14,21 +15,31 @@ struct DashboardView: View {
     ZStack(alignment: .bottom) {
       CodexBackdrop(accent: hasAttention ? CodexTheme.orange : CodexTheme.blue)
         .ignoresSafeArea()
-      ScrollView {
-        LazyVStack(spacing: 22) {
-          HeaderView { showingAllKeys = true }
-          if store.profiles.isEmpty {
-            PairingWelcome()
-          } else {
-            dashboardContent(compactHeight: verticalSizeClass == .compact)
+      GeometryReader { proxy in
+        if horizontalSizeClass == .regular && verticalSizeClass == .regular
+          && !store.profiles.isEmpty
+        {
+          // iPad: the keyboard is a control surface, so the page itself never
+          // scrolls — only the secondary info column does.
+          ipadContent(size: proxy.size)
+        } else {
+          ScrollView {
+            LazyVStack(spacing: 22) {
+              HeaderView { showingAllKeys = true }
+              if store.profiles.isEmpty {
+                PairingWelcome()
+              } else {
+                dashboardContent(size: proxy.size)
+              }
+              Color.clear.frame(height: 16)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
           }
-          Color.clear.frame(height: 16)
+          .scrollIndicators(.hidden)
+          .defaultScrollAnchor(.top)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
       }
-      .scrollIndicators(.hidden)
-      .defaultScrollAnchor(.top)
 
       if let receipt = store.visibleCommandReceipt {
         CommandReceiptHUD(receipt: receipt)
@@ -73,8 +84,49 @@ struct DashboardView: View {
     .sensoryFeedback(.error, trigger: store.commandErrorPulse)
   }
 
+  /// Fixed (non-scrolling) iPad layout. Portrait pins the keyboard on top;
+  /// landscape pins it on the left. Chats and capacity live in their own
+  /// scrollable column so page gestures can never move the keys.
   @ViewBuilder
-  private func dashboardContent(compactHeight: Bool) -> some View {
+  private func ipadContent(size: CGSize) -> some View {
+    VStack(spacing: 12) {
+      HeaderView { showingAllKeys = true }
+      if size.width > size.height {
+        let side = max(320, min(size.height - 96, size.width - 300))
+        HStack(alignment: .top, spacing: 16) {
+          microDevice
+            .frame(width: side, height: side)
+          infoColumn
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+      } else {
+        let side = max(320, min(size.width - 36, size.height - 430))
+        microDevice
+          .frame(width: side, height: side)
+        infoColumn
+      }
+    }
+    .padding(.horizontal, 18)
+    .padding(.top, 8)
+    .padding(.bottom, 10)
+  }
+
+  private var infoColumn: some View {
+    ScrollView {
+      VStack(spacing: 14) {
+        ActiveChatsView()
+        UsageHero(resetConfirmation: $resetConfirmation)
+      }
+    }
+    .scrollIndicators(.hidden)
+  }
+
+  @ViewBuilder
+  private func dashboardContent(size: CGSize) -> some View {
+    let compactHeight = verticalSizeClass == .compact
+    // iPads report regular size classes in every orientation, so landscape
+    // must be detected from the actual container proportions.
+    let landscapePad = !compactHeight && size.width > size.height
     if compactHeight {
       ViewThatFits(in: .horizontal) {
         HStack(alignment: .top, spacing: 18) {
@@ -96,6 +148,20 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity)
       }
+    } else if landscapePad {
+      // Keyboard fills the available height on the left — it is the control
+      // surface, so it gets every point we can give it. Selected chats and
+      // account capacity are secondary; they stack in whatever width remains.
+      HStack(alignment: .top, spacing: 16) {
+        microDevice
+          .frame(width: max(320, min(size.height - 88, size.width - 300)))
+        VStack(spacing: 14) {
+          ActiveChatsView()
+          UsageHero(resetConfirmation: $resetConfirmation)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+      }
+      .frame(maxWidth: .infinity, alignment: .top)
     } else {
       microDevice
       ActiveChatsView()
