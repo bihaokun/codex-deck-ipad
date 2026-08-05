@@ -385,6 +385,7 @@ private struct ContextUsageIndicator: View {
 private struct ConfigurableDeviceKey: View {
   @Environment(DashboardStore.self) private var store
   @Environment(\.microKeySide) private var keySide
+  @State private var showingCompose = false
   let slot: DeviceKeySlot
   let editKey: (DeviceKeySlot) -> Void
 
@@ -406,22 +407,32 @@ private struct ConfigurableDeviceKey: View {
       }
     }
     .simultaneousGesture(micGesture(isMic: isMic))
+    .sheet(isPresented: $showingCompose) { ComposeSheet() }
     .accessibilityLabel(listening ? "Stop dictation" : keycap.name)
     .accessibilityHint(
       isMic
-        ? "Tap to start dictation on the computer, tap again to stop."
+        ? "Tap to start dictation on the computer, tap again to stop. Touch and hold to dictate on this iPad."
         : "Tap to run. Touch and hold to replace this key.")
     .accessibilityAction { Task { await store.pressDeviceKey(slot) } }
   }
 
-  /// The dictation key is tap-only: its long press used to open the keycap
-  /// picker, which fought with the start/stop toggle. Other keys keep the
-  /// hold-to-replace gesture.
+  /// Mic key: tap toggles the Mac-side dictation, long press opens the local
+  /// compose sheet (iPad dictation starts immediately). Its old long-press
+  /// keycap picker fought with the toggle, so replacing the mic key now goes
+  /// through the All Keys panel instead. Other keys keep hold-to-replace.
   private func micGesture(isMic: Bool) -> AnyGesture<Void> {
     if isMic {
       return AnyGesture(
-        TapGesture()
-          .onEnded { Task { await store.pressDeviceKey(slot) } }
+        LongPressGesture(minimumDuration: 0.4)
+          .exclusively(before: TapGesture())
+          .onEnded { result in
+            switch result {
+            case .first:
+              showingCompose = true
+            case .second:
+              Task { await store.pressDeviceKey(slot) }
+            }
+          }
           .map { _ in () })
     }
     return AnyGesture(

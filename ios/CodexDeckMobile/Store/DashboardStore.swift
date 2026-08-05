@@ -693,6 +693,21 @@ final class DashboardStore {
       title: title, on: host)
   }
 
+  /// Send composed text (typed or dictated on this device) into the selected
+  /// agent's thread on its computer. The host bridge activates the thread,
+  /// inserts the text, and submits it.
+  func composeToSelectedAgent(_ text: String) async {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    guard let agent = agents.first(where: \.selected) else {
+      presentUnroutedFailure(title: "Send text", error: CommandTransactionError.taskUnavailable)
+      return
+    }
+    await execute(
+      .compose(slot: agent.sourceSlot, threadKey: agent.threadKey, text: trimmed),
+      title: "Send to \(agent.title)", on: agent.host)
+  }
+
   func pressDeviceKey(_ slot: DeviceKeySlot) async {
     let keycapId = keycapID(for: slot)
     // MIC always goes through the keycap path: the host bridge implements it
@@ -1288,6 +1303,8 @@ private extension RelayCommand {
     switch self {
     case .agent:
       "Open task"
+    case .compose:
+      "Send text"
     case .action(let slot, _):
       [
         "ACT06": "Fast mode", "ACT07": "Approve", "ACT08": "Reject",

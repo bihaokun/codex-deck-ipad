@@ -246,6 +246,7 @@ struct RoutedAgent: Identifiable, Hashable, Sendable {
 
 enum RelayCommand: Encodable, Sendable {
   case agent(slot: Int, threadKey: String, act: Int)
+  case compose(slot: Int, threadKey: String, text: String)
   case action(slot: String, act: Int)
   case joystick(direction: String, distance: Int)
   case encoder(act: Int)
@@ -261,6 +262,11 @@ enum RelayCommand: Encodable, Sendable {
       try values.encode(slot, forKey: .slot)
       try values.encode(threadKey, forKey: .threadKey)
       try values.encode(act, forKey: .act)
+    case .compose(let slot, let threadKey, let text):
+      try values.encode("compose", forKey: .kind)
+      try values.encode(slot, forKey: .slot)
+      try values.encode(threadKey, forKey: .threadKey)
+      try values.encode(text, forKey: .text)
     case .action(let slot, let act):
       try values.encode("action", forKey: .kind)
       try values.encode(slot, forKey: .slot)
@@ -284,7 +290,7 @@ enum RelayCommand: Encodable, Sendable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case kind, slot, threadKey, act, direction, distance, keycapId
+    case kind, slot, threadKey, act, direction, distance, keycapId, text
   }
 }
 

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(CODEX_DECK_BUNDLE_ID).widget-refresh</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Codex Deck</string>
 	<key>CFBundleExecutable</key>
@@ -16,31 +20,6 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>$(CODEX_DECK_BUNDLE_ID).widget-refresh</string>
-	</array>
-	<key>CodexDeckAppGroup</key>
-	<string>$(CODEX_DECK_APP_GROUP)</string>
-	<key>CodexDeckWidgetRefreshIdentifier</key>
-	<string>$(CODEX_DECK_BUNDLE_ID).widget-refresh</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Codex Deck discovers and securely connects to your paired Mac and Windows computers on the local network.</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_codexdeck._tcp</string>
-	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -52,20 +31,45 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CodexDeckAppGroup</key>
+	<string>$(CODEX_DECK_APP_GROUP)</string>
+	<key>CodexDeckWidgetRefreshIdentifier</key>
+	<string>$(CODEX_DECK_BUNDLE_ID).widget-refresh</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_codexdeck._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Codex Deck discovers and securely connects to your paired Mac and Windows computers on the local network.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Dictating a task to your Codex agent records audio on this device until you stop it.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Your dictated task is transcribed on this device so you can review and edit it before sending.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
-	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

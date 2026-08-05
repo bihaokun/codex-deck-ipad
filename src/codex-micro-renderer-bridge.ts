@@ -360,20 +360,25 @@ export class CodexMicroRendererBridge {
       // bare uuid. Normalize both sides before comparing.
       const normalize = (value) => value ? value.replace(/^[a-z]+:/i, '') : value;
       const wanted = normalize(threadKey);
-      const activeThreadKey = () => document.querySelector('[data-above-composer-conversation-id]')
-        ?.getAttribute('data-above-composer-conversation-id')
-        ?? document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')
-          ?.getAttribute('data-app-action-sidebar-thread-id')
-        ?? document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')
-          ?.getAttribute('data-app-action-sidebar-thread-id')
-        ?? null;
+      // A thread may surface its identity through several attributes whose
+      // values disagree in format (e.g. client-new-thread temp ids vs the
+      // conversation uuid), so activation counts if ANY candidate matches.
+      const activeThreadKeys = () => [
+        document.querySelector('[data-above-composer-conversation-id]')
+          ?.getAttribute('data-above-composer-conversation-id'),
+        document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')
+          ?.getAttribute('data-app-action-sidebar-thread-id'),
+        document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')
+          ?.getAttribute('data-app-action-sidebar-thread-id'),
+      ].filter(Boolean);
+      const isActive = () => activeThreadKeys().some((key) => normalize(key) === wanted);
       const waitForActive = async (duration) => {
         const deadline = Date.now() + duration;
         while (Date.now() < deadline) {
-          if (normalize(activeThreadKey()) === wanted) return true;
+          if (isActive()) return true;
           await new Promise((resolve) => setTimeout(resolve, 25));
         }
-        return normalize(activeThreadKey()) === wanted;
+        return isActive();
       };
       if (await waitForActive(250)) return 'active';
       const item = [...document.querySelectorAll('[data-app-action-sidebar-thread-id]')]
@@ -390,6 +395,48 @@ export class CodexMicroRendererBridge {
       throw new Error("The exact Codex task is not present in this host's loaded sidebar. Open or pin it once in Codex, then retry.");
     }
     throw new Error("Codex received the task selection but did not activate the requested thread.");
+  }
+
+  /** Activate the target thread, insert text into the composer via the
+   * native `codex-micro-insert-composer-text` handler, and submit it with a
+   * synthetic Enter. Verified against Codex 26.7x. */
+  async composeText(slot: number, text: string, threadKey?: string): Promise<void> {
+    await this.sendAgent(slot, 1, threadKey);
+    await this.sendAgent(slot, 0, threadKey);
+    await this.ensureConnected();
+    const expression = `(async () => {
+      const urls = [...new Set([
+        ...[...document.querySelectorAll('link[href], script[src]')].map((element) => element.href || element.src),
+        ...performance.getEntriesByType('resource').map((entry) => entry.name)
+      ])].filter((url) => url.includes('/assets/') && url.endsWith('.js'));
+      let bus = null;
+      for (const url of urls) {
+        try {
+          const namespace = await import(url);
+          bus = Object.values(namespace).find((candidate) => candidate && typeof candidate === 'object' && candidate.handlers instanceof Map && typeof candidate.dispatchHostMessage === 'function');
+          if (bus) break;
+        } catch {}
+      }
+      if (!bus) throw new Error('Codex native event bus was not found.');
+      if ((bus.handlers.get('codex-micro-insert-composer-text')?.size ?? 0) === 0) {
+        throw new Error('Codex composer insert handler is not active.');
+      }
+      bus.dispatchHostMessage({ type: 'codex-micro-insert-composer-text', text: ${JSON.stringify(text)} });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const composer = document.querySelector('[contenteditable="true"]');
+      if (!composer) throw new Error('Codex composer element was not found.');
+      composer.focus();
+      composer.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
+      }));
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if ((composer.innerText ?? '').trim() === '') return true;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Codex accepted the text but did not submit it.');
+    })()`;
+    await this.evaluate(expression);
   }
 
   async sendAction(slot: MicroActionSlot, act: 0 | 1): Promise<void> {
