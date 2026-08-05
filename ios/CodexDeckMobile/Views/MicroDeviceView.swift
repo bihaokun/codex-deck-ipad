@@ -79,7 +79,9 @@ struct CodexMicroDeviceView: View {
         let spacing: CGFloat = 9
         let keySide = (proxy.size.width - hPad * 2 - spacing * 3) / 4
         ZStack {
-          DeviceEnclosure(glow: ambientGlow(for: agents), connected: connectedCount > 0)
+          DeviceEnclosure(
+            glow: ambientGlow(for: agents), connected: connectedCount > 0,
+            listening: store.micListening || store.localDictating)
 
           VStack(spacing: spacing) {
             HStack(spacing: spacing) {
@@ -147,8 +149,10 @@ struct CodexMicroDeviceView: View {
 
 private struct DeviceEnclosure: View {
   @Environment(\.colorScheme) private var colorScheme
+  @State private var breath = false
   let glow: Color
   let connected: Bool
+  var listening = false
 
   var body: some View {
     ZStack {
@@ -172,8 +176,30 @@ private struct DeviceEnclosure: View {
           RoundedRectangle(cornerRadius: 48, style: .continuous)
             .stroke(.white.opacity(colorScheme == .dark ? 0.2 : 0.9), lineWidth: 3)
         }
+        .overlay {
+          // Idle breathing under the frosted rim, like the hardware's ambient
+          // ring. Swapped for the light chase while dictating.
+          if !listening {
+            RoundedRectangle(cornerRadius: 46, style: .continuous)
+              .strokeBorder(glow.opacity(breath ? (connected ? 0.5 : 0.22) : 0.06), lineWidth: 7)
+              .blur(radius: 9)
+              .padding(3)
+              .allowsHitTesting(false)
+          }
+        }
+        .overlay {
+          if listening {
+            EnclosureLightChase()
+          }
+        }
         .shadow(
-          color: glow.opacity(connected ? 0.38 : 0.12), radius: 14, y: 9)
+          color: glow.opacity(connected ? (breath ? 0.5 : 0.24) : 0.12),
+          radius: breath ? 20 : 12, y: 9)
+        .onAppear {
+          withAnimation(.easeInOut(duration: 2.8).repeatForever(autoreverses: true)) {
+            breath = true
+          }
+        }
 
       RoundedRectangle(cornerRadius: 34, style: .continuous)
         .fill(
@@ -191,6 +217,40 @@ private struct DeviceEnclosure: View {
         .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
         .padding(18)
     }
+  }
+}
+
+/// Full-perimeter RGB chase under the frosted enclosure rim while dictation is
+/// live — a rainbow sweep orbiting the whole deck, like the hardware's
+/// push-to-talk light show.
+private struct EnclosureLightChase: View {
+  @State private var angle: Double = 0
+
+  var body: some View {
+    AngularGradient(
+      gradient: Gradient(colors: [
+        Color(red: 1.0, green: 0.35, blue: 0.35),
+        Color(red: 1.0, green: 0.65, blue: 0.2),
+        Color(red: 0.4, green: 0.9, blue: 0.45),
+        Color(red: 0.25, green: 0.75, blue: 1.0),
+        Color(red: 0.6, green: 0.45, blue: 1.0),
+        Color(red: 1.0, green: 0.4, blue: 0.75),
+        Color(red: 1.0, green: 0.35, blue: 0.35),
+      ]),
+      center: .center)
+      .scaleEffect(1.5)
+      .rotationEffect(.degrees(angle))
+      .mask(
+        RoundedRectangle(cornerRadius: 46, style: .continuous)
+          .strokeBorder(lineWidth: 10)
+          .padding(2))
+      .blur(radius: 6)
+      .allowsHitTesting(false)
+      .onAppear {
+        withAnimation(.linear(duration: 2.6).repeatForever(autoreverses: false)) {
+          angle = 360
+        }
+      }
   }
 }
 

@@ -22,6 +22,10 @@ final class DashboardStore {
   /// Local mirror of the host bridge's dictation toggle: flipped every time a
   /// MIC keycap command is delivered, so the mic key can show a listening state.
   private(set) var micListening = false
+  /// True while the compose sheet is actively recording on this device, so
+  /// the enclosure can run its light chase like the hardware does during
+  /// push-to-talk.
+  var localDictating = false
   private(set) var attentionEvents: [AttentionEvent] = []
   private(set) var attentionNotificationsEnabled = false
   private(set) var showTaskTitlesInNotifications = false

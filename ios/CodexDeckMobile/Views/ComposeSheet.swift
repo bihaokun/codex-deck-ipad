@@ -210,7 +210,13 @@ struct ComposeSheet: View {
         }
       }
       .task { await dictation.start() }
-      .onDisappear { dictation.stop() }
+      .onChange(of: dictation.isRecording) { _, recording in
+        store.localDictating = recording
+      }
+      .onDisappear {
+        dictation.stop()
+        store.localDictating = false
+      }
     }
     .presentationDetents([.height(380), .medium])
     .presentationDragIndicator(.visible)
