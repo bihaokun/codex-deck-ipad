@@ -313,6 +313,7 @@ export class CodexMicroRendererBridge {
   private pending = new Map<number, { resolve: (value: CdpResponse) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
   private connecting?: Promise<void>;
   private lastSnapshot?: MicroSnapshot;
+  private micHeld = false;
   private readonly sessionOwnership = new CodexSessionOwnershipIndex();
   private readonly evaluationNamespace = randomUUID();
 
@@ -354,6 +355,11 @@ export class CodexMicroRendererBridge {
   private async ensureThreadActivated(threadKey: string): Promise<void> {
     const result = await this.evaluate<"active" | "opened" | "missing" | "failed">(`(async () => {
       const threadKey = ${JSON.stringify(threadKey)};
+      // Codex 26.7x prefixes sidebar thread ids with a locality scheme
+      // ("local:<uuid>") while data-above-composer-conversation-id carries the
+      // bare uuid. Normalize both sides before comparing.
+      const normalize = (value) => value ? value.replace(/^[a-z]+:/i, '') : value;
+      const wanted = normalize(threadKey);
       const activeThreadKey = () => document.querySelector('[data-above-composer-conversation-id]')
         ?.getAttribute('data-above-composer-conversation-id')
         ?? document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')
@@ -364,14 +370,14 @@ export class CodexMicroRendererBridge {
       const waitForActive = async (duration) => {
         const deadline = Date.now() + duration;
         while (Date.now() < deadline) {
-          if (activeThreadKey() === threadKey) return true;
+          if (normalize(activeThreadKey()) === wanted) return true;
           await new Promise((resolve) => setTimeout(resolve, 25));
         }
-        return activeThreadKey() === threadKey;
+        return normalize(activeThreadKey()) === wanted;
       };
       if (await waitForActive(250)) return 'active';
       const item = [...document.querySelectorAll('[data-app-action-sidebar-thread-id]')]
-        .find((element) => element.getAttribute('data-app-action-sidebar-thread-id') === threadKey);
+        .find((element) => normalize(element.getAttribute('data-app-action-sidebar-thread-id')) === wanted);
       if (!item) return 'missing';
       const selector = 'button, a, [role="button"], [role="link"]';
       const clickable = item.matches(selector) ? item : item.querySelector(selector) ?? item.closest(selector) ?? item;
@@ -408,6 +414,17 @@ export class CodexMicroRendererBridge {
 
   async runKeycap(keycapId: OfficialKeycapId): Promise<void> {
     if (!OFFICIAL_KEYCAP_IDS.includes(keycapId)) throw new Error(`Unknown Codex Micro keycap: ${keycapId}`);
+    if (keycapId === "MIC") {
+      // Codex 26.7x defines the MIC keycap as a named native action ("Push to
+      // talk") with no importable command module, so the keycap path below
+      // cannot run it. Drive the native HID dictation key instead. The relay
+      // keycap command carries no press/release, so emulate push-to-talk as a
+      // toggle: first tap holds the key down, the next tap releases it.
+      const act = this.micHeld ? 0 : 1;
+      await this.sendAction("ACT10_ACT11", act);
+      this.micHeld = !this.micHeld;
+      return;
+    }
     await this.ensureConnected();
     const expression = `(async () => {
       const urls = [...new Set([
