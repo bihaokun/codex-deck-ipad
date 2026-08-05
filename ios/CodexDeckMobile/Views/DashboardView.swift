@@ -417,10 +417,13 @@ private struct UsageHero: View {
       HStack(spacing: 20) {
         UsageRing(value: weekly?.remainingPercent, title: "WEEKLY")
         VStack(spacing: 13) {
-          UsageBar(title: "5 HOUR", value: fiveHour?.remainingPercent, tint: CodexTheme.blue)
+          UsageBar(
+            title: "5 HOUR", value: fiveHour?.remainingPercent, tint: CodexTheme.blue,
+            resetsAt: fiveHour?.resetsAt)
           UsageBar(
             title: "WEEKLY", value: weekly?.remainingPercent,
-            tint: capacityColor(weekly?.remainingPercent))
+            tint: capacityColor(weekly?.remainingPercent),
+            resetsAt: weekly?.resetsAt)
           HStack {
             Label(
               "\(usage?.resetCreditsAvailable ?? 0) resets", systemImage: "arrow.counterclockwise"
@@ -449,6 +452,20 @@ private struct UsageHero: View {
   private func capacityColor(_ value: Double?) -> Color {
     guard let value else { return CodexTheme.secondary }
     return value < 20 ? CodexTheme.red : value < 40 ? CodexTheme.orange : CodexTheme.green
+  }
+}
+
+extension UsageBar {
+  /// "14:30" when the window resets within 24 hours, otherwise "8月9日 14:30"
+  /// (localized). Nil when the host has not reported a reset time.
+  fileprivate var resetLabel: String? {
+    guard let resetsAt, resetsAt > 0 else { return nil }
+    let date = Date(timeIntervalSince1970: resetsAt / 1000)
+    guard date > .now else { return nil }
+    if date.timeIntervalSinceNow < 24 * 3600 {
+      return date.formatted(date: .omitted, time: .shortened)
+    }
+    return date.formatted(.dateTime.month().day().hour().minute())
   }
 }
 
@@ -485,11 +502,19 @@ private struct UsageBar: View {
   let title: String
   let value: Double?
   let tint: Color
+  var resetsAt: Double? = nil
 
   var body: some View {
     VStack(spacing: 5) {
       HStack {
         Text(title).font(.system(size: 9, weight: .bold)).tracking(1)
+        if let label = resetLabel {
+          Label(label, systemImage: "arrow.counterclockwise")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(CodexTheme.secondary)
+            .labelStyle(.titleAndIcon)
+            .imageScale(.small)
+        }
         Spacer()
         Text(value.map { "\(Int($0.rounded()))%" } ?? "—")
           .font(.caption.weight(.bold)).monospacedDigit()
