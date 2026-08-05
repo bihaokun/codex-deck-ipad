@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// Side length of one square Micro key, derived from the enclosure width so
+/// four columns always fill it edge to edge like the hardware.
+private struct MicroKeySideKey: EnvironmentKey {
+  static let defaultValue: CGFloat = 66
+}
+
+extension EnvironmentValues {
+  fileprivate var microKeySide: CGFloat {
+    get { self[MicroKeySideKey.self] }
+    set { self[MicroKeySideKey.self] = newValue }
+  }
+}
+
 struct ActiveChatsView: View {
   @Environment(DashboardStore.self) private var store
 
@@ -62,47 +75,49 @@ struct CodexMicroDeviceView: View {
     let agents = placements.compactMap(\.agent)
     VStack(spacing: 0) {
       GeometryReader { proxy in
+        let hPad: CGFloat = verticalSizeClass == .compact ? 34 : 40
+        let spacing: CGFloat = 9
+        let keySide = (proxy.size.width - hPad * 2 - spacing * 3) / 4
         ZStack {
           DeviceEnclosure(glow: ambientGlow(for: agents), connected: connectedCount > 0)
 
-          VStack(spacing: 6) {
-            HStack(spacing: 6) {
+          VStack(spacing: spacing) {
+            HStack(spacing: spacing) {
               ReasoningDial()
               MicroAgentKey(placement: placement(0), showAgent: showAgent)
               MicroAgentKey(placement: placement(1), showAgent: showAgent)
               JoystickControl()
             }
-            HStack(spacing: 6) {
+            HStack(spacing: spacing) {
               MicroAgentKey(placement: placement(2), showAgent: showAgent)
               MicroAgentKey(placement: placement(3), showAgent: showAgent)
               MicroAgentKey(placement: placement(4), showAgent: showAgent)
               MicroAgentKey(placement: placement(5), showAgent: showAgent)
             }
-            HStack(spacing: 6) {
+            HStack(spacing: spacing) {
               ConfigurableDeviceKey(slot: .action1, editKey: editKey)
               ConfigurableDeviceKey(slot: .action2, editKey: editKey)
               ConfigurableDeviceKey(slot: .action3, editKey: editKey)
               ConfigurableDeviceKey(slot: .action4, editKey: editKey)
             }
-            HStack(spacing: 6) {
+            HStack(spacing: spacing) {
               SignalCluster(
                 agents: agents, connectedCount: connectedCount, expectedCount: store.expectedCount
               )
-              .frame(width: 61)
+              .frame(width: keySide)
               ConfigurableDeviceKey(slot: .wide, editKey: editKey)
               ConfigurableDeviceKey(slot: .corner, editKey: editKey)
-              .frame(width: 61)
+              .frame(width: keySide)
             }
           }
-          .padding(.horizontal, verticalSizeClass == .compact ? 33 : 43)
-          .padding(.vertical, verticalSizeClass == .compact ? 30 : 38)
-          .scaleEffect(verticalSizeClass == .compact ? 0.97 : 1)
+          .environment(\.microKeySide, keySide)
+          .padding(.horizontal, hPad)
 
           DeviceDetails(size: proxy.size)
           DeviceScrews().padding(verticalSizeClass == .compact ? 18 : 17)
         }
       }
-      .aspectRatio(1.02, contentMode: .fit)
+      .aspectRatio(1.0, contentMode: .fit)
     }
   }
 
@@ -239,6 +254,7 @@ private struct DeviceHostPicker: View {
 
 private struct MicroAgentKey: View {
   @Environment(DashboardStore.self) private var store
+  @Environment(\.microKeySide) private var keySide
   @State private var pressing = false
   @State private var lastLongPressAt = Date.distantPast
   let placement: MobileAgentPlacement
@@ -258,20 +274,21 @@ private struct MicroAgentKey: View {
           HStack(spacing: 3) {
             if let context = agent.contextUsedPercent, store.showContextRings {
               ContextUsageIndicator(
-                percent: context, status: hostConnected ? agent.status : "offline")
+                percent: context, status: hostConnected ? agent.status : "offline",
+                diameter: max(11, keySide * 0.14))
             } else {
               Circle().fill(
                 hostConnected ? CodexTheme.statusColor(agent.status) : CodexTheme.secondary)
-                .frame(width: 5, height: 5)
+                .frame(width: max(5, keySide * 0.07), height: max(5, keySide * 0.07))
             }
             Spacer(minLength: 0)
             Text(agent.originPlatform.shortLabel)
-              .font(.system(size: 6.5, weight: .black))
+              .font(.system(size: max(6.5, keySide * 0.09), weight: .black))
               .foregroundStyle(hostConnected ? CodexTheme.ink : CodexTheme.red)
           }
           Spacer(minLength: 0)
           Text(agent.title)
-            .font(.system(size: 7.1, weight: .semibold))
+            .font(.system(size: max(7.1, keySide * 0.1), weight: .semibold))
             .lineLimit(2)
             .multilineTextAlignment(.center)
             .foregroundStyle(
@@ -282,19 +299,19 @@ private struct MicroAgentKey: View {
         }
       } else {
         Image(systemName: "plus")
-          .font(.system(size: 16, weight: .semibold))
+          .font(.system(size: max(16, keySide * 0.22), weight: .semibold))
           .foregroundStyle(CodexTheme.secondary.opacity(0.42))
           .accessibilityHidden(true)
       }
     }
-    .padding(7)
+    .padding(max(7, keySide * 0.1))
     .modifier(
       DeviceKeySurface(
         selected: agent?.selected == true, status: agent?.status, agentKey: true,
         pressed: pressing))
     .overlay {
       if pressing, let agent {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
+        RoundedRectangle(cornerRadius: keySide * 0.19, style: .continuous)
           .stroke(CodexTheme.statusColor(agent.status), lineWidth: 2.2)
           .shadow(color: CodexTheme.statusColor(agent.status).opacity(0.65), radius: 8)
           .padding(1)
@@ -303,7 +320,7 @@ private struct MicroAgentKey: View {
     .scaleEffect(pressing ? 1.035 : 1)
     .opacity(agent != nil && !hostConnected ? 0.62 : 1)
     .animation(.smooth(duration: 0.18), value: pressing)
-    .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    .contentShape(RoundedRectangle(cornerRadius: keySide * 0.19, style: .continuous))
     .onTapGesture {
       guard let agent, hostConnected, Date().timeIntervalSince(lastLongPressAt) > 0.35 else {
         return
@@ -341,20 +358,21 @@ private struct MicroAgentKey: View {
 private struct ContextUsageIndicator: View {
   let percent: Double
   let status: String
+  var diameter: CGFloat = 11
 
   var body: some View {
     ZStack {
       Circle()
-        .stroke(CodexTheme.ink.opacity(0.12), lineWidth: 1.7)
+        .stroke(CodexTheme.ink.opacity(0.12), lineWidth: diameter * 0.155)
       Circle()
         .trim(from: 0, to: max(0, min(1, percent / 100)))
-        .stroke(signalColor, style: StrokeStyle(lineWidth: 1.7, lineCap: .round))
+        .stroke(signalColor, style: StrokeStyle(lineWidth: diameter * 0.155, lineCap: .round))
         .rotationEffect(.degrees(-90))
       Circle()
         .fill(CodexTheme.statusColor(status))
-        .frame(width: 3, height: 3)
+        .frame(width: diameter * 0.27, height: diameter * 0.27)
     }
-    .frame(width: 11, height: 11)
+    .frame(width: diameter, height: diameter)
   }
 
   private var signalColor: Color {
@@ -366,17 +384,47 @@ private struct ContextUsageIndicator: View {
 
 private struct ConfigurableDeviceKey: View {
   @Environment(DashboardStore.self) private var store
+  @Environment(\.microKeySide) private var keySide
   let slot: DeviceKeySlot
   let editKey: (DeviceKeySlot) -> Void
 
   var body: some View {
     let keycap = store.keycapDefinition(for: slot)
+    let isMic = keycap.id == "MIC"
+    let listening = isMic && store.micListening
     Button {} label: {
-      Image(systemName: keycap.symbol)
-        .font(.system(size: 21, weight: .medium))
+      Image(systemName: listening ? "waveform" : keycap.symbol)
+        .font(.system(size: max(21, keySide * 0.3), weight: .medium))
+        .foregroundStyle(listening ? CodexTheme.red : CodexTheme.ink)
+        .symbolEffect(.variableColor.iterative.reversing, isActive: listening)
+        .contentTransition(.symbolEffect(.replace))
     }
     .buttonStyle(DeviceKeyStyle())
-    .simultaneousGesture(
+    .overlay {
+      if listening {
+        ListeningRing()
+      }
+    }
+    .simultaneousGesture(micGesture(isMic: isMic))
+    .accessibilityLabel(listening ? "Stop dictation" : keycap.name)
+    .accessibilityHint(
+      isMic
+        ? "Tap to start dictation on the computer, tap again to stop."
+        : "Tap to run. Touch and hold to replace this key.")
+    .accessibilityAction { Task { await store.pressDeviceKey(slot) } }
+  }
+
+  /// The dictation key is tap-only: its long press used to open the keycap
+  /// picker, which fought with the start/stop toggle. Other keys keep the
+  /// hold-to-replace gesture.
+  private func micGesture(isMic: Bool) -> AnyGesture<Void> {
+    if isMic {
+      return AnyGesture(
+        TapGesture()
+          .onEnded { Task { await store.pressDeviceKey(slot) } }
+          .map { _ in () })
+    }
+    return AnyGesture(
       LongPressGesture(minimumDuration: 0.45)
         .exclusively(before: TapGesture())
         .onEnded { result in
@@ -387,11 +435,25 @@ private struct ConfigurableDeviceKey: View {
             Task { await store.pressDeviceKey(slot) }
           }
         }
-    )
-    .accessibilityLabel(keycap.name)
-    .accessibilityHint("Tap to run. Touch and hold to replace this key.")
-    .accessibilityAction(named: "Replace key") { editKey(slot) }
-    .accessibilityAction { Task { await store.pressDeviceKey(slot) } }
+        .map { _ in () })
+  }
+}
+
+/// Breathing red border shown while the Mac is dictating — the key stays lit
+/// until the second tap stops the recording.
+private struct ListeningRing: View {
+  @Environment(\.microKeySide) private var keySide
+  @State private var breath = false
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: keySide * 0.19, style: .continuous)
+      .strokeBorder(CodexTheme.red.opacity(breath ? 0.95 : 0.35), lineWidth: 2.6)
+      .shadow(color: CodexTheme.red.opacity(breath ? 0.75 : 0.2), radius: breath ? 11 : 4)
+      .onAppear {
+        withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) {
+          breath = true
+        }
+      }
   }
 }
 
@@ -411,65 +473,193 @@ private struct DeviceKeyStyle: ButtonStyle {
 
 private struct DeviceKeySurface: ViewModifier {
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.microKeySide) private var keySide
   var selected = false
   var status: String?
   var agentKey = false
   var pressed = false
 
+  /// How far the top face sinks when the key is pressed.
+  private var travel: CGFloat { max(4, keySide * 0.045) }
+  private var faceRadius: CGFloat { keySide * 0.17 }
+  private var baseRadius: CGFloat { keySide * 0.19 }
+
   func body(content: Content) -> some View {
     content
       .foregroundStyle(CodexTheme.ink)
-      .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 60)
-      .background(
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-          .fill(keyFill)
-          .shadow(color: .white.opacity(colorScheme == .dark ? 0.12 : 0.95), radius: 0, y: -2)
-          .shadow(
-            color: hasStatusLight
-              ? statusTint.opacity(0.58)
-              : selected
-                ? CodexTheme.selection.opacity(0.26)
-                : .black.opacity(pressed ? 0.08 : 0.15),
-            radius: hasStatusLight ? 9 : pressed ? 1 : selected ? 5 : 3,
-            y: pressed ? 1 : 4))
-      .overlay {
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-          .stroke(
-            hasStatusLight
-              ? statusTint.opacity(0.92)
-              : selected
-                ? CodexTheme.selection.opacity(0.88)
-                : .white.opacity(colorScheme == .dark ? 0.18 : 0.74),
-            lineWidth: selected || hasStatusLight ? 1.5 : 1)
-          .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-              .stroke(
-                .white.opacity(colorScheme == .dark ? 0.1 : agentKey ? 0.28 : 0.58),
-                lineWidth: 1)
-              .padding(4)
-          }
-      }
-      .scaleEffect(pressed ? 0.96 : 1)
+      .frame(maxWidth: .infinity)
+      .frame(height: keySide - travel)
+      .background(agentKey ? AnyView(frostedFace) : AnyView(solidFace))
+      .offset(y: pressed ? travel - 1 : 0)
+      .frame(height: keySide, alignment: .top)
+      .background(baseWall)
+      .compositingGroup()
+      .shadow(
+        color: hasStatusLight
+          ? statusTint.opacity(0.7)
+          : selected
+            ? CodexTheme.selection.opacity(0.3)
+            : .black.opacity(pressed ? 0.1 : 0.22),
+        radius: hasStatusLight ? 14 : pressed ? 2 : 5,
+        y: pressed ? 1 : 4)
       .animation(.snappy(duration: 0.14), value: pressed)
   }
 
-  private var keyFill: Color {
-    if hasStatusLight {
-      return statusTint.opacity(pressed ? 0.18 : 0.3)
-    }
-    if agentKey { return CodexTheme.key.opacity(pressed ? 0.68 : 0.9) }
-    return CodexTheme.key.opacity(pressed ? 0.72 : 0.95)
+  /// Agent keycap: frosted translucent glass with the RGB switch glowing
+  /// through from underneath, like the hardware's clear caps.
+  private var frostedFace: some View {
+    RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+      .fill(.ultraThinMaterial)
+      .overlay {
+        // The switch body + LED seen through the frosted cap. Idle stays a
+        // faint hardware-purple ember; a live status floods the whole cap.
+        Circle()
+          .fill(hasStatusLight ? statusTint : Color(red: 0.48, green: 0.42, blue: 0.95))
+          .frame(
+            width: keySide * (hasStatusLight ? 0.34 : 0.18),
+            height: keySide * (hasStatusLight ? 0.34 : 0.18))
+          .blur(radius: keySide * (hasStatusLight ? 0.12 : 0.07))
+          .opacity(hasStatusLight ? 1 : 0.3)
+      }
+      .overlay {
+        if hasStatusLight {
+          RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+            .fill(statusTint.opacity(pressed ? 0.12 : 0.18))
+        }
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+          .fill(
+            LinearGradient(
+              colors: colorScheme == .dark
+                ? [.white.opacity(0.10), .white.opacity(0.02)]
+                : [.white.opacity(0.55), .white.opacity(0.18)],
+              startPoint: .top,
+              endPoint: .bottom))
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+          .strokeBorder(
+            .white.opacity(colorScheme == .dark ? 0.22 : 0.85),
+            lineWidth: 1.2)
+      }
+      .overlay {
+        if hasStatusLight {
+          RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+            .strokeBorder(statusTint.opacity(0.9), lineWidth: 1.8)
+        } else if selected {
+          RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+            .strokeBorder(CodexTheme.selection.opacity(0.9), lineWidth: 1.8)
+        }
+      }
+      .padding(.horizontal, 2.5)
+  }
+
+  /// Opaque command keycap: top-lit plastic like the hardware's white keys.
+  private var solidFace: some View {
+    RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+      .fill(
+        LinearGradient(
+          colors: colorScheme == .dark
+            ? [Color(red: 0.27, green: 0.30, blue: 0.34), Color(red: 0.17, green: 0.19, blue: 0.22)]
+            : [Color(white: 0.995), Color(red: 0.90, green: 0.905, blue: 0.90)],
+          startPoint: .top,
+          endPoint: .bottom))
+      .overlay {
+        RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+          .strokeBorder(
+            LinearGradient(
+              colors: colorScheme == .dark
+                ? [.white.opacity(0.26), .white.opacity(0.05)]
+                : [.white, .black.opacity(0.07)],
+              startPoint: .top,
+              endPoint: .bottom),
+            lineWidth: 1.2)
+      }
+      .overlay {
+        if selected {
+          RoundedRectangle(cornerRadius: faceRadius, style: .continuous)
+            .strokeBorder(CodexTheme.selection.opacity(0.85), lineWidth: 1.6)
+        }
+      }
+      .padding(.horizontal, 2.5)
+  }
+
+  /// Keycap side wall: the darker skirt that stays put while the face travels.
+  private var baseWall: some View {
+    RoundedRectangle(cornerRadius: baseRadius, style: .continuous)
+      .fill(
+        LinearGradient(
+          colors: colorScheme == .dark
+            ? [Color(red: 0.10, green: 0.11, blue: 0.13), Color(red: 0.05, green: 0.055, blue: 0.07)]
+            : [Color(red: 0.74, green: 0.75, blue: 0.755), Color(red: 0.62, green: 0.635, blue: 0.645)],
+          startPoint: .top,
+          endPoint: .bottom))
+      .overlay {
+        if isWorking {
+          // A comet of light chasing clockwise around the key edge — the
+          // "this agent is busy" animation.
+          WorkingLightRing(cornerRadius: baseRadius, tint: statusTint)
+        } else if hasStatusLight {
+          // RGB under-glow leaking out from beneath the keycap, like the
+          // hardware's per-key light ring.
+          RoundedRectangle(cornerRadius: baseRadius, style: .continuous)
+            .stroke(statusTint, lineWidth: 3.5)
+            .blur(radius: 4)
+        }
+      }
   }
 
   private var hasStatusLight: Bool {
     agentKey && !["idle", "off", "empty"].contains(status ?? "idle")
   }
 
+  private var isWorking: Bool {
+    agentKey && ["working", "thinking"].contains(status ?? "")
+  }
+
   private var statusTint: Color { CodexTheme.statusColor(status ?? "idle") }
+}
+
+/// Clockwise LED chase around a keycap border: a static ring of dim tint with
+/// a bright comet segment orbiting it, driven by a rotating angular gradient
+/// behind a fixed border mask so the corners never distort.
+private struct WorkingLightRing: View {
+  let cornerRadius: CGFloat
+  let tint: Color
+  @State private var angle: Double = 0
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        .stroke(tint.opacity(0.35), lineWidth: 3)
+      AngularGradient(
+        gradient: Gradient(stops: [
+          .init(color: .clear, location: 0),
+          .init(color: .clear, location: 0.62),
+          .init(color: tint.opacity(0.85), location: 0.86),
+          .init(color: .white.opacity(0.95), location: 0.97),
+          .init(color: .clear, location: 1),
+        ]),
+        center: .center)
+        .scaleEffect(1.7)
+        .rotationEffect(.degrees(angle))
+        .mask(
+          RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .stroke(lineWidth: 4.5))
+    }
+    .blur(radius: 2.2)
+    .onAppear {
+      withAnimation(.linear(duration: 1.7).repeatForever(autoreverses: false)) {
+        angle = 360
+      }
+    }
+  }
 }
 
 private struct ReasoningDial: View {
   @Environment(DashboardStore.self) private var store
+  @Environment(\.microKeySide) private var keySide
   @State private var rotation: Double = -45
   @State private var lastStep = 0
 
@@ -523,7 +713,8 @@ private struct ReasoningDial: View {
       }
       .rotationEffect(.degrees(rotation))
     }
-    .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 60)
+    .scaleEffect(keySide / 66)
+    .frame(maxWidth: .infinity, minHeight: keySide, maxHeight: keySide)
     .contentShape(Rectangle())
     .onTapGesture { Task { await store.pressEncoder() } }
     .gesture(
@@ -544,32 +735,33 @@ private struct ReasoningDial: View {
 
 private struct JoystickControl: View {
   @Environment(DashboardStore.self) private var store
+  @Environment(\.microKeySide) private var keySide
   @GestureState private var translation: CGSize = .zero
 
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
+      RoundedRectangle(cornerRadius: keySide * 0.19, style: .continuous)
         .fill(
           LinearGradient(
             colors: [Color(red: 0.16, green: 0.18, blue: 0.19), .black.opacity(0.96)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing))
         .overlay {
-          RoundedRectangle(cornerRadius: 14, style: .continuous)
+          RoundedRectangle(cornerRadius: keySide * 0.19, style: .continuous)
             .stroke(style: StrokeStyle(lineWidth: 1.35, dash: [4, 3]))
             .foregroundStyle(CodexTheme.ink.opacity(0.72))
         }
         .overlay {
-          RoundedRectangle(cornerRadius: 11, style: .continuous)
+          RoundedRectangle(cornerRadius: keySide * 0.15, style: .continuous)
             .stroke(.white.opacity(0.09), lineWidth: 1)
             .padding(4)
         }
 
       ForEach(JoystickDirection.allCases) { direction in
         Image(systemName: direction.symbol)
-          .font(.system(size: 5.5, weight: .black))
+          .font(.system(size: keySide * 0.085, weight: .black))
           .foregroundStyle(.white.opacity(0.28))
-          .offset(direction.offset)
+          .offset(direction.offset(keySide * 0.37))
       }
 
       Circle()
@@ -578,8 +770,8 @@ private struct JoystickControl: View {
             colors: [Color(red: 0.30, green: 0.32, blue: 0.33), Color(red: 0.055, green: 0.06, blue: 0.065)],
             center: UnitPoint(x: 0.34, y: 0.26),
             startRadius: 1,
-            endRadius: 30))
-        .frame(width: 42, height: 42)
+            endRadius: keySide * 0.46))
+        .frame(width: keySide * 0.64, height: keySide * 0.64)
         .offset(limitedOffset)
         .overlay {
           Circle().stroke(.white.opacity(0.12), lineWidth: 1)
@@ -587,14 +779,13 @@ private struct JoystickControl: View {
         .overlay(alignment: .topLeading) {
           Capsule()
             .fill(.white.opacity(0.22))
-            .frame(width: 12, height: 2)
+            .frame(width: keySide * 0.18, height: 2)
             .rotationEffect(.degrees(-42))
-            .offset(x: 9, y: 10)
+            .offset(x: keySide * 0.14, y: keySide * 0.15)
         }
         .shadow(color: .black.opacity(0.48), radius: 5, y: 3)
-      .frame(width: 60, height: 60)
     }
-    .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 60)
+    .frame(maxWidth: .infinity, minHeight: keySide, maxHeight: keySide)
     .contentShape(Rectangle())
     .gesture(
       DragGesture(minimumDistance: 7)
@@ -631,17 +822,18 @@ private enum JoystickDirection: CaseIterable, Identifiable {
     case .left: "chevron.left"
     }
   }
-  var offset: CGSize {
+  func offset(_ distance: CGFloat) -> CGSize {
     switch self {
-    case .up: CGSize(width: 0, height: -24)
-    case .right: CGSize(width: 24, height: 0)
-    case .down: CGSize(width: 0, height: 24)
-    case .left: CGSize(width: -24, height: 0)
+    case .up: CGSize(width: 0, height: -distance)
+    case .right: CGSize(width: distance, height: 0)
+    case .down: CGSize(width: 0, height: distance)
+    case .left: CGSize(width: -distance, height: 0)
     }
   }
 }
 
 private struct SignalCluster: View {
+  @Environment(\.microKeySide) private var keySide
   let agents: [RoutedAgent]
   let connectedCount: Int
   let expectedCount: Int
@@ -670,7 +862,8 @@ private struct SignalCluster: View {
       .frame(width: 37, height: 37)
       .shadow(color: stateColor.opacity(connectedCount > 0 ? 0.42 : 0.12), radius: 6, y: 2)
     }
-    .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 60)
+    .scaleEffect(keySide / 66)
+    .frame(maxWidth: .infinity, minHeight: keySide, maxHeight: keySide)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Codex status lens")
     .accessibilityValue("\(connectedCount) of \(expectedCount) computers connected, \(stateTitle)")
