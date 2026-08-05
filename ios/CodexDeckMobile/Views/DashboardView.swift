@@ -58,6 +58,17 @@ struct DashboardView: View {
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
+    .overlay(alignment: .bottomTrailing) {
+      // Compose panel docks at the bottom-right (there is spare room there in
+      // both orientations) instead of a modal sheet, so the deck never jumps.
+      if store.showingCompose {
+        ComposePanel()
+          .padding(.trailing, 20)
+          .padding(.bottom, 24)
+          .transition(.move(edge: .trailing).combined(with: .opacity))
+      }
+    }
+    .animation(.snappy(duration: 0.25), value: store.showingCompose)
     .tint(CodexTheme.ink)
     .sheet(isPresented: $store.showingSettings) { SettingsView() }
     .sheet(isPresented: $store.showingAttentionCenter) { AttentionCenterView() }

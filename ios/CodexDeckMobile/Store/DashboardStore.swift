@@ -26,6 +26,8 @@ final class DashboardStore {
   /// the enclosure can run its light chase like the hardware does during
   /// push-to-talk.
   var localDictating = false
+  /// Whether the compose panel (long-press on the mic key) is visible.
+  var showingCompose = false
   private(set) var attentionEvents: [AttentionEvent] = []
   private(set) var attentionNotificationsEnabled = false
   private(set) var showTaskTitlesInNotifications = false

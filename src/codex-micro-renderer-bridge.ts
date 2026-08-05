@@ -463,13 +463,60 @@ export class CodexMicroRendererBridge {
     if (!OFFICIAL_KEYCAP_IDS.includes(keycapId)) throw new Error(`Unknown Codex Micro keycap: ${keycapId}`);
     if (keycapId === "MIC") {
       // Codex 26.7x defines the MIC keycap as a named native action ("Push to
-      // talk") with no importable command module, so the keycap path below
-      // cannot run it. Drive the native HID dictation key instead. The relay
-      // keycap command carries no press/release, so emulate push-to-talk as a
-      // toggle: first tap holds the key down, the next tap releases it.
-      const act = this.micHeld ? 0 : 1;
-      await this.sendAction("ACT10_ACT11", act);
+      // talk") with no importable command module. Drive the native
+      // push-to-talk bus handlers instead, as a toggle (the relay keycap
+      // command carries no press/release): first tap starts dictation, the
+      // next tap stops it and auto-submits whatever landed in the composer —
+      // matching the hardware's talk-release-send flow.
+      const stopping = this.micHeld;
       this.micHeld = !this.micHeld;
+      await this.ensureConnected();
+      const expression = `(async () => {
+        const urls = [...new Set([
+          ...[...document.querySelectorAll('link[href], script[src]')].map((element) => element.href || element.src),
+          ...performance.getEntriesByType('resource').map((entry) => entry.name)
+        ])].filter((url) => url.includes('/assets/') && url.endsWith('.js'));
+        let bus = null;
+        for (const url of urls) {
+          try {
+            const namespace = await import(url);
+            bus = Object.values(namespace).find((candidate) => candidate && typeof candidate === 'object' && candidate.handlers instanceof Map && typeof candidate.dispatchHostMessage === 'function');
+            if (bus) break;
+          } catch {}
+        }
+        if (!bus) throw new Error('Codex native event bus was not found.');
+        const stopping = ${JSON.stringify(stopping)};
+        const pttType = stopping ? 'codex-micro-push-to-talk-stop' : 'codex-micro-push-to-talk-start';
+        if ((bus.handlers.get(pttType)?.size ?? 0) > 0) {
+          bus.dispatchHostMessage({ type: pttType });
+        } else {
+          // Older builds: fall back to the native HID dictation key.
+          bus.dispatchHostMessage({ type: 'codex-micro-hid-event', event: { key: 'ACT10', act: stopping ? 0 : 1, slot: null, threadKey: null } });
+        }
+        if (!stopping) return true;
+        // Auto-send: wait for the transcription to settle in the composer,
+        // then submit it. If nothing was said, do nothing.
+        const composer = document.querySelector('[contenteditable="true"]');
+        if (!composer) return true;
+        const readText = () => (composer.innerText ?? '').trim();
+        let last = '';
+        let stableSince = Date.now();
+        // The bridge's own evaluate timeout is 5s, so settle within 3.8s.
+        const deadline = Date.now() + 3800;
+        while (Date.now() < deadline) {
+          const current = readText();
+          if (current !== last) { last = current; stableSince = Date.now(); }
+          if (current !== '' && Date.now() - stableSince >= 600) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        if (readText() === '') return true;
+        composer.focus();
+        composer.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
+        }));
+        return true;
+      })()`;
+      await this.evaluate(expression);
       return;
     }
     await this.ensureConnected();

@@ -177,14 +177,10 @@ private struct DeviceEnclosure: View {
             .stroke(.white.opacity(colorScheme == .dark ? 0.2 : 0.9), lineWidth: 3)
         }
         .overlay {
-          // Idle breathing under the frosted rim, like the hardware's ambient
-          // ring. Swapped for the light chase while dictating.
+          // Idle ambience under the frosted rim, like the hardware's ambient
+          // ring. Swapped for the rainbow chase while dictating.
           if !listening {
-            RoundedRectangle(cornerRadius: 46, style: .continuous)
-              .strokeBorder(glow.opacity(breath ? (connected ? 0.5 : 0.22) : 0.06), lineWidth: 7)
-              .blur(radius: 9)
-              .padding(3)
-              .allowsHitTesting(false)
+            EnclosureAmbientFlow(glow: glow, connected: connected)
           }
         }
         .overlay {
@@ -217,6 +213,46 @@ private struct DeviceEnclosure: View {
         .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
         .padding(18)
     }
+  }
+}
+
+/// Idle rim ambience: two soft pools of the status color drift slowly around
+/// the enclosure while the whole ring breathes — flowing light under frosted
+/// glass rather than a static pulse.
+private struct EnclosureAmbientFlow: View {
+  @State private var angle: Double = 0
+  @State private var breath = false
+  let glow: Color
+  let connected: Bool
+
+  var body: some View {
+    AngularGradient(
+      gradient: Gradient(stops: [
+        .init(color: glow.opacity(0.05), location: 0),
+        .init(color: glow, location: 0.18),
+        .init(color: glow.opacity(0.1), location: 0.42),
+        .init(color: glow.opacity(0.9), location: 0.65),
+        .init(color: glow.opacity(0.08), location: 0.88),
+        .init(color: glow.opacity(0.05), location: 1),
+      ]),
+      center: .center)
+      .scaleEffect(1.5)
+      .rotationEffect(.degrees(angle))
+      .mask(
+        RoundedRectangle(cornerRadius: 46, style: .continuous)
+          .strokeBorder(lineWidth: 9)
+          .padding(2.5))
+      .blur(radius: 8)
+      .opacity(connected ? (breath ? 0.95 : 0.35) : (breath ? 0.3 : 0.1))
+      .allowsHitTesting(false)
+      .onAppear {
+        withAnimation(.linear(duration: 9).repeatForever(autoreverses: false)) {
+          angle = 360
+        }
+        withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
+          breath = true
+        }
+      }
   }
 }
 
@@ -445,7 +481,6 @@ private struct ContextUsageIndicator: View {
 private struct ConfigurableDeviceKey: View {
   @Environment(DashboardStore.self) private var store
   @Environment(\.microKeySide) private var keySide
-  @State private var showingCompose = false
   let slot: DeviceKeySlot
   let editKey: (DeviceKeySlot) -> Void
 
@@ -467,7 +502,6 @@ private struct ConfigurableDeviceKey: View {
       }
     }
     .simultaneousGesture(micGesture(isMic: isMic))
-    .sheet(isPresented: $showingCompose) { ComposeSheet() }
     .accessibilityLabel(listening ? "Stop dictation" : keycap.name)
     .accessibilityHint(
       isMic
@@ -488,7 +522,7 @@ private struct ConfigurableDeviceKey: View {
           .onEnded { result in
             switch result {
             case .first:
-              showingCompose = true
+              store.showingCompose = true
             case .second:
               Task { await store.pressDeviceKey(slot) }
             }
