@@ -19,6 +19,9 @@ final class DashboardStore {
   private(set) var commandHistory: [CommandReceipt] = []
   private(set) var commandSuccessPulse = 0
   private(set) var commandErrorPulse = 0
+  /// Local mirror of the host bridge's dictation toggle: flipped every time a
+  /// MIC keycap command is delivered, so the mic key can show a listening state.
+  private(set) var micListening = false
   private(set) var attentionEvents: [AttentionEvent] = []
   private(set) var attentionNotificationsEnabled = false
   private(set) var showTaskTitlesInNotifications = false
@@ -691,8 +694,12 @@ final class DashboardStore {
   }
 
   func pressDeviceKey(_ slot: DeviceKeySlot) async {
-    if keyAssignments[slot.rawValue] != nil || mobileLayoutProfile != .automatic {
-      await trigger(.keycap(id: keycapID(for: slot)))
+    let keycapId = keycapID(for: slot)
+    // MIC always goes through the keycap path: the host bridge implements it
+    // as a tap-to-start / tap-to-stop toggle, which the native press/release
+    // path (an instant down+up blip) cannot express.
+    if keycapId == "MIC" || keyAssignments[slot.rawValue] != nil || mobileLayoutProfile != .automatic {
+      await trigger(.keycap(id: keycapId))
     } else {
       await pressAction(slot.nativeActionSlot)
     }
@@ -774,6 +781,9 @@ final class DashboardStore {
     let receiptID = beginReceipt(title: title, host: host)
     do {
       let delivery = try await deliver(command, to: host.hostId)
+      if case .keycap(let keycapId) = command, keycapId == "MIC" {
+        micListening.toggle()
+      }
       finishReceipt(
         receiptID, stage: .stateConfirmed,
         detail: "Executed by \(host.platform.displayName)", requestID: delivery.requestID)
