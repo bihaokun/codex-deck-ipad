@@ -424,7 +424,7 @@ async function runWatcher(): Promise<number> {
           relaySignature = "";
           if (relayConfig?.enabled || mobileLocalConfig?.enabled) {
             const identity = await hostState();
-            relayControl = new CodexMicroRendererBridge(safeLog);
+            relayControl = new FocusingRendererBridge(safeLog);
             if (relayConfig?.enabled) {
               relayServer = new CodexRelayServer(
                 relayConfig,
@@ -599,6 +599,17 @@ async function dryRun(): Promise<void> {
   if (main && !port) console.log("Action: a real restart would be required; dry-run left Codex untouched.");
   else if (!main) console.log("Action: start Codex with a random loopback port.");
   else console.log("Action: reuse the current bridge and apply the runtime override.");
+}
+
+/** Bridge variant that raises the Codex window after a thread is selected
+ * remotely, so the switch is visible even when Codex sits behind other apps. */
+class FocusingRendererBridge extends CodexMicroRendererBridge {
+  override async sendAgent(slot: number, act: 0 | 1, expectedThreadKey?: string): Promise<void> {
+    await super.sendAgent(slot, act, expectedThreadKey);
+    if (act === 1) {
+      run("/usr/bin/open", ["-b", CODEX_BUNDLE_ID], { allowFailure: true });
+    }
+  }
 }
 
 async function configureRelay(listenHost: string | undefined, portValue: string | undefined): Promise<void> {
