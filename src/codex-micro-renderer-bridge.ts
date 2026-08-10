@@ -304,7 +304,15 @@ const SNAPSHOT_EXPRESSION = `(async () => {
     ? (activeThreadElement.getAttribute('aria-label') ?? activeThreadElement.textContent ?? '').trim().slice(0, 240) || undefined
     : undefined;
 
-  return { slots, activeThreadKey, activeThreadTitle, layout, agentSource, lightingAutoOff, theme, ...(usage ? { usage } : {}) };
+  // Sidebar threads beyond the six native slots, so larger clients (e.g. the
+  // web console on a 10-inch tablet) can offer more than six tasks.
+  const sidebarThreads = [...document.querySelectorAll('[data-app-action-sidebar-thread-id]')].slice(0, 24)
+    .map((element) => ({
+      threadKey: element.getAttribute('data-app-action-sidebar-thread-id'),
+      title: element.getAttribute('data-app-action-sidebar-thread-title') ?? ''
+    }))
+    .filter((thread) => thread.threadKey);
+  return { slots, activeThreadKey, activeThreadTitle, layout, agentSource, lightingAutoOff, theme, ...(usage ? { usage } : {}), ...(sidebarThreads.length ? { sidebarThreads } : {}) };
 })()`;
 
 export class CodexMicroRendererBridge {
