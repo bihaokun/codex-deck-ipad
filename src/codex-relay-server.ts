@@ -12,6 +12,7 @@ import {
   type RelayResultMessage, type RelaySnapshotMessage
 } from "./relay-protocol.js";
 import type { CodexHost } from "./types.js";
+import WEB_CONSOLE_HTML from "../static/web-console.html";
 
 export type RelayServerConfig = {
   enabled: boolean;
@@ -33,6 +34,7 @@ type RelayControl = Pick<CodexMicroRendererBridge,
 export class CodexRelayServer {
   private server?: WebSocketServer;
   private httpsServer?: HttpsServer;
+  private plainHttpServer?: import("node:http").Server;
   private bonjour?: Bonjour;
   private addressPoll?: NodeJS.Timeout;
   private effectiveListenHost = "";
@@ -101,6 +103,19 @@ export class CodexRelayServer {
     }
   }
 
+  /** Serve the built-in web console on plain GET requests so any browser on
+   * the tailnet/LAN can act as a client; WebSocket upgrades pass through. */
+  private static serveConsole(request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse): void {
+    const path = (request.url ?? "/").split("?")[0];
+    if (request.method === "GET" && (path === "/" || path === "/console")) {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      response.end(WEB_CONSOLE_HTML);
+      return;
+    }
+    response.writeHead(404, { "content-type": "text/plain" });
+    response.end("Not found");
+  }
+
   private async startBound(host: string): Promise<void> {
     const websocketOptions = { maxPayload: 64 * 1024, perMessageDeflate: false } as const;
     let server: WebSocketServer;
@@ -109,7 +124,7 @@ export class CodexRelayServer {
         cert: this.config.tls.certificate,
         key: this.config.tls.privateKey,
         minVersion: "TLSv1.2"
-      });
+      }, CodexRelayServer.serveConsole);
       this.httpsServer = httpsServer;
       server = new WebSocketServer({ server: httpsServer, ...websocketOptions });
       await new Promise<void>((resolve, reject) => {
@@ -117,11 +132,14 @@ export class CodexRelayServer {
         httpsServer.listen(this.config.port, host, resolve);
       });
     } else {
-      server = new WebSocketServer({ host, port: this.config.port, ...websocketOptions });
+      const { createServer } = await import("node:http");
+      const httpServer = createServer(CodexRelayServer.serveConsole);
+      server = new WebSocketServer({ server: httpServer, ...websocketOptions });
       await new Promise<void>((resolve, reject) => {
-        server.once("listening", resolve);
-        server.once("error", reject);
+        httpServer.once("error", reject);
+        httpServer.listen(this.config.port, host, resolve);
       });
+      this.plainHttpServer = httpServer;
     }
     this.server = server;
     this.effectiveListenHost = host;
@@ -162,6 +180,9 @@ export class CodexRelayServer {
     const httpsServer = this.httpsServer;
     this.httpsServer = undefined;
     if (httpsServer?.listening) await new Promise<void>((resolve) => httpsServer.close(() => resolve()));
+    const plainHttpServer = this.plainHttpServer;
+    this.plainHttpServer = undefined;
+    if (plainHttpServer?.listening) await new Promise<void>((resolve) => plainHttpServer.close(() => resolve()));
     this.effectiveListenHost = "";
   }
 

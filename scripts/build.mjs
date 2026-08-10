@@ -30,6 +30,7 @@ await build({
   entryPoints: [resolve("src/plugin.ts")],
   outfile: resolve(output, "bin/plugin.mjs"),
   bundle: true,
+  loader: { ".html": "text" },
   platform: "node",
   format: "esm",
   target: "node20",

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Codex Deck</title>
+<style>
+  :root {
+    --canvas: #090c12; --panel: #161a22; --key: #232a35; --key-hi: #2d3542;
+    --ink: #eef1f6; --dim: #8b95a5; --blue: #2187fa; --orange: #ffa021;
+    --green: #2ed470; --red: #ff4556; --mint: #43e3c2; --purple: #7a6cf2;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: radial-gradient(1200px 700px at 50% -10%, #101724, var(--canvas));
+    color: var(--ink); font: 15px/1.45 -apple-system, "PingFang SC", "Noto Sans SC", Roboto, sans-serif;
+    min-height: 100vh; padding: 18px 16px 40px; user-select: none;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 19px; letter-spacing: 3px; margin: 0; font-weight: 800; }
+  header .sub { color: var(--dim); font-size: 11px; letter-spacing: 2px; }
+  #conn { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--dim); }
+  #conn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); }
+  #conn.ok .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  .deck { background: linear-gradient(150deg, #141a24, #0b0f16); border: 1px solid #ffffff1f;
+    border-radius: 26px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    box-shadow: 0 18px 50px #0009; }
+
+  .agents { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .key { position: relative; border-radius: 16px; background: linear-gradient(180deg, var(--key-hi), var(--key));
+    border: 1px solid #ffffff24; min-height: 92px; padding: 10px; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: space-between;
+    box-shadow: 0 6px 14px #0007, inset 0 1px 0 #ffffff2e; transition: transform .09s; }
+  .key:active { transform: translateY(2px); }
+  .key .status { width: 9px; height: 9px; border-radius: 50%; background: #5a6270; }
+  .key .glow { position: absolute; inset: 0; margin: auto; width: 34%; height: 34%; border-radius: 50%;
+    background: var(--purple); filter: blur(16px); opacity: .28; pointer-events: none; }
+  .key .title { font-size: 12.5px; font-weight: 600; color: #cfd6e2; text-align: center;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.6em; }
+  .key .ctx { font-size: 9.5px; color: var(--dim); text-align: right; }
+  .key.selected { border-color: var(--mint); box-shadow: 0 0 14px #43e3c266, inset 0 1px 0 #ffffff2e; }
+  .key[data-tone="working"]  { --tone: var(--blue); }
+  .key[data-tone="approval"] { --tone: var(--orange); }
+  .key[data-tone="done"]     { --tone: var(--green); }
+  .key[data-tone="error"]    { --tone: var(--red); }
+  .key[data-tone] .status { background: var(--tone); box-shadow: 0 0 8px var(--tone); }
+  .key[data-tone] .glow { background: var(--tone); opacity: .55; }
+  .key[data-tone] { background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 16%, var(--key-hi)), var(--key)); }
+  .chase { position: absolute; inset: -2px; border-radius: 18px; padding: 2.5px; pointer-events: none;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; overflow: hidden; }
+  .chase::before { content: ""; position: absolute; inset: -60%;
+    background: conic-gradient(transparent 0 58%, var(--tone, var(--blue)) 82%, #fff 96%, transparent 100%);
+    animation: spin 1.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .act { border-radius: 14px; min-height: 58px; font-size: 21px; color: var(--ink);
+    background: linear-gradient(180deg, var(--key-hi), var(--key)); border: 1px solid #ffffff24;
+    box-shadow: 0 5px 12px #0007, inset 0 1px 0 #ffffff2e; cursor: pointer; transition: transform .09s;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .act small { font-size: 9.5px; color: var(--dim); letter-spacing: 1px; }
+  .act:active { transform: translateY(2px); }
+  .act.listening { border-color: var(--red); box-shadow: 0 0 16px #ff455688; animation: breathe 0.9s ease-in-out infinite alternate; }
+  @keyframes breathe { from { box-shadow: 0 0 6px #ff455644; } to { box-shadow: 0 0 18px #ff4556aa; } }
+
+  .compose { display: flex; flex-direction: column; gap: 8px; background: var(--panel);
+    border: 1px solid #ffffff18; border-radius: 18px; padding: 12px; }
+  .compose .target { font-size: 12px; color: var(--dim); }
+  .compose .target b { color: var(--mint); font-weight: 600; }
+  .compose textarea { background: #0d1119; border: 1px solid #ffffff1c; color: var(--ink);
+    border-radius: 12px; min-height: 74px; padding: 10px; font: inherit; resize: vertical; user-select: text; }
+  .compose .row { display: flex; gap: 8px; }
+  .btn { flex: 1; border: none; border-radius: 12px; padding: 12px; font: 600 14px/1 inherit;
+    cursor: pointer; color: var(--ink); background: var(--key-hi); }
+  .btn.voice.listening { background: var(--red); color: #fff; animation: breathe .9s ease-in-out infinite alternate; }
+  .btn.send { background: var(--blue); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: default; }
+
+  .usage { display: flex; gap: 16px; align-items: center; background: var(--panel);
+    border: 1px solid #ffffff18; border-radius: 18px; padding: 13px 16px; }
+  .usage .bars { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+  .bar .lbl { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--dim);
+    letter-spacing: 1px; margin-bottom: 4px; }
+  .bar .lbl b { color: var(--ink); }
+  .bar .track { height: 7px; border-radius: 99px; background: #ffffff14; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 99px; background: var(--green); width: 0%; transition: width .4s; }
+
+  #toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: #20293a; border: 1px solid #ffffff22; color: var(--ink); font-size: 13px;
+    padding: 10px 18px; border-radius: 99px; opacity: 0; transition: opacity .25s; pointer-events: none;
+    max-width: 90vw; box-shadow: 0 8px 30px #000a; }
+  #toast.show { opacity: 1; }
+  #toast.err { background: #47141c; border-color: #ff455677; }
+
+  dialog { background: var(--panel); color: var(--ink); border: 1px solid #ffffff22;
+    border-radius: 18px; padding: 22px; max-width: 340px; width: 90vw; }
+  dialog::backdrop { background: #000a; }
+  dialog input { width: 100%; margin: 12px 0; padding: 11px; border-radius: 10px;
+    border: 1px solid #ffffff26; background: #0d1119; color: var(--ink); font: inherit; user-select: text; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CODEX</h1><span class="sub">DECK · WEB</span>
+    <div id="conn"><span class="dot"></span><span id="connText">连接中…</span></div>
+  </header>
+
+  <div class="deck">
+    <div class="agents" id="agents"></div>
+    <div class="actions">
+      <button class="act" data-act="ACT06" title="Fast">⚡<small>FAST</small></button>
+      <button class="act" data-act="ACT07" title="Approve">✓<small>批准</small></button>
+      <button class="act" data-act="ACT08" title="Reject">✕<small>拒绝</small></button>
+      <button class="act" data-act="ACT09" title="Fork">⑂<small>分叉</small></button>
+      <button class="act" id="macMic" title="Mac 听写">🎙<small>MAC说话</small></button>
+    </div>
+  </div>
+
+  <div class="compose">
+    <div class="target" id="target">未选中会话 —— 先点一个 Agent 键</div>
+    <textarea id="text" placeholder="说点什么,或直接打字"></textarea>
+    <div class="row">
+      <button class="btn voice" id="voice">🎙 按住说话不用,点一下</button>
+      <button class="btn send" id="send" disabled>发送 ➤</button>
+    </div>
+  </div>
+
+  <div class="usage">
+    <div class="bars">
+      <div class="bar"><div class="lbl"><span>5 HOUR <span id="r5"></span></span><b id="p5">—</b></div>
+        <div class="track"><div class="fill" id="f5"></div></div></div>
+      <div class="bar"><div class="lbl"><span>WEEKLY <span id="rw"></span></span><b id="pw">—</b></div>
+        <div class="track"><div class="fill" id="fw"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<dialog id="tokenDialog">
+  <b>输入配对令牌</b>
+  <div style="color:var(--dim);font-size:12px;margin-top:6px">Mac 上 relay-config 打印的 token(只需输入一次)</div>
+  <input id="tokenInput" placeholder="token" autocomplete="off" />
+  <button class="btn send" id="tokenSave" style="width:100%">连接</button>
+</dialog>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const norm = (v) => v ? v.replace(/^[a-z]+:/i, "") : v;
+  let ws = null, snapshot = null, hostName = "", reqId = 0, macListening = false;
+  const pending = new Map();
+
+  // ---- token ----
+  const params = new URLSearchParams(location.search);
+  if (params.get("token")) {
+    localStorage.setItem("codex-deck-token", params.get("token"));
+    history.replaceState(null, "", location.pathname);
+  }
+  const token = () => localStorage.getItem("codex-deck-token") || "";
+
+  function askToken() {
+    $("tokenDialog").showModal();
+    $("tokenSave").onclick = () => {
+      const v = $("tokenInput").value.trim();
+      if (!v) return;
+      localStorage.setItem("codex-deck-token", v);
+      $("tokenDialog").close();
+      connect();
+    };
+  }
+
+  // ---- websocket ----
+  function connect() {
+    if (!token()) return askToken();
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}`);
+    setConn(false, "连接中…");
+    ws.onopen = () => ws.send(JSON.stringify({ type: "auth", protocol: 1, token: token() }));
+    ws.onmessage = (e) => handle(JSON.parse(e.data));
+    ws.onclose = () => { setConn(false, "已断开,重连中…"); setTimeout(connect, 2500); };
+    ws.onerror = () => {};
+  }
+
+  function handle(m) {
+    if (m.type === "ready") { hostName = m.host?.hostName ?? ""; setConn(true, hostName); }
+    if (m.type === "snapshot") { snapshot = m.snapshot; render(); }
+    if (m.type === "result") {
+      const p = pending.get(m.requestId); pending.delete(m.requestId);
+      if (!m.ok) toast(m.error || "命令失败", true);
+      else if (p) toast(p);
+    }
+  }
+
+  function send(command, note) {
+    if (!ws || ws.readyState !== 1) return toast("未连接", true);
+    const requestId = "web-" + (++reqId);
+    if (note) pending.set(requestId, note);
+    ws.send(JSON.stringify({ type: "command", protocol: 1, requestId, command }));
+  }
+
+  function setConn(ok, text) {
+    $("conn").classList.toggle("ok", ok);
+    $("connText").textContent = text;
+  }
+
+  // ---- render ----
+  const tone = (s) =>
+    ["working", "thinking"].includes(s) ? "working" :
+    ["approval", "awaiting-approval", "awaiting-response"].includes(s) ? "approval" :
+    ["unread", "complete", "completed", "done"].includes(s) ? "done" :
+    s === "error" ? "error" : null;
+
+  function selectedSlot() {
+    if (!snapshot) return null;
+    return snapshot.slots.find((s) => s.selected && s.threadKey)
+      ?? snapshot.slots.find((s) => s.threadKey && norm(s.threadKey) === norm(snapshot.activeThreadKey))
+      ?? null;
+  }
+
+  function render() {
+    const box = $("agents"); box.innerHTML = "";
+    for (const slot of snapshot.slots) {
+      const key = document.createElement("div");
+      key.className = "key" + (slot.selected ? " selected" : "");
+      const t = tone(slot.status);
+      if (t) key.dataset.tone = t;
+      key.innerHTML = `
+        ${t === "working" ? '<div class="chase"></div>' : ""}
+        <div class="status"></div><div class="glow"></div>
+        <div class="title">${slot.title ? esc(slot.title) : "<span style='color:#4a5260'>＋</span>"}</div>
+        <div class="ctx">${slot.contextUsedPercent != null ? Math.round(slot.contextUsedPercent) + "%" : ""}</div>`;
+      if (slot.threadKey) {
+        key.onclick = () => {
+          send({ kind: "agent", slot: slot.id, threadKey: slot.threadKey, act: 1 });
+          setTimeout(() => send({ kind: "agent", slot: slot.id, threadKey: slot.threadKey, act: 0 }, "已切换到 " + (slot.title ?? "会话")), 90);
+        };
+      }
+      box.appendChild(key);
+    }
+    const sel = selectedSlot();
+    $("target").innerHTML = sel
+      ? `↳ 发往 <b>${esc(sel.title ?? "未命名会话")}</b> · ${esc(hostName)}`
+      : "未选中会话 —— 先点一个 Agent 键";
+    updateSend();
+
+    const usage = snapshot.usage;
+    const w5 = usage?.windows?.find((w) => w.kind === "five-hour");
+    const ww = usage?.windows?.find((w) => w.kind === "weekly");
+    setBar("5", w5); setBar("w", ww);
+  }
+
+  function setBar(which, w) {
+    $("p" + which).textContent = w ? Math.round(w.remainingPercent) + "%" : "—";
+    $("f" + which).style.width = (w ? Math.max(0, Math.min(100, w.remainingPercent)) : 0) + "%";
+    $("f" + which).style.background = !w ? "" : w.remainingPercent < 20 ? "var(--red)" : w.remainingPercent < 40 ? "var(--orange)" : "var(--green)";
+    $("r" + which).textContent = w?.resetsAt ? "↻ " + fmtReset(w.resetsAt) : "";
+  }
+
+  function fmtReset(ms) {
+    const d = new Date(ms);
+    if (d - Date.now() < 0) return "";
+    const hm = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return d - Date.now() < 86400e3 ? hm : `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
+  }
+
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---- actions ----
+  for (const btn of document.querySelectorAll(".act[data-act]")) {
+    btn.onclick = () => {
+      const slot = btn.dataset.act;
+      send({ kind: "action", slot, act: 1 });
+      setTimeout(() => send({ kind: "action", slot, act: 0 }, btn.title), 90);
+    };
+  }
+  $("macMic").onclick = () => {
+    macListening = !macListening;
+    $("macMic").classList.toggle("listening", macListening);
+    send({ kind: "keycap", keycapId: "MIC" }, macListening ? "Mac 正在听……再按一次发送" : "已停止,自动发送");
+  };
+
+  // ---- compose ----
+  const text = $("text");
+  text.oninput = updateSend;
+  function updateSend() { $("send").disabled = !text.value.trim() || !selectedSlot(); }
+
+  $("send").onclick = () => {
+    const sel = selectedSlot();
+    if (!sel) return toast("先选中一个会话", true);
+    send({ kind: "compose", slot: sel.id, threadKey: sel.threadKey, text: text.value.trim() }, "已发送 ✓");
+    text.value = ""; updateSend();
+  };
+
+  // ---- voice (Web Speech, needs HTTPS) ----
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, recBase = "";
+  $("voice").onclick = () => {
+    if (rec) { rec.stop(); return; }
+    if (!SR) return toast(location.protocol === "https:" ? "此浏览器不支持语音识别" : "语音需要 HTTPS(用 Tailscale 地址打开)", true);
+    rec = new SR();
+    rec.lang = "zh-CN"; rec.interimResults = true; rec.continuous = true;
+    recBase = text.value ? text.value + " " : "";
+    let finalText = "";
+    rec.onresult = (e) => {
+      let interim = "";
+      for (const r of e.results) (r.isFinal ? (finalText += r[0].transcript) : (interim += r[0].transcript));
+      text.value = recBase + finalText + interim; updateSend();
+    };
+    rec.onend = rec.onerror = () => {
+      rec = null;
+      $("voice").classList.remove("listening");
+      $("voice").textContent = "🎙 点一下说话";
+    };
+    rec.start();
+    $("voice").classList.add("listening");
+    $("voice").textContent = "🔴 正在听,点一下停止";
+  };
+  $("voice").textContent = "🎙 点一下说话";
+
+  // ---- toast ----
+  let toastTimer;
+  function toast(msg, err) {
+    const t = $("toast");
+    t.textContent = msg; t.className = "show" + (err ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.className = ""), 2600);
+  }
+
+  connect();
+})();
+</script>
+</body>
+</html>
