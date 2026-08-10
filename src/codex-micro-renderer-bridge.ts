@@ -483,6 +483,47 @@ export class CodexMicroRendererBridge {
     await this.dispatch("codex-micro-hid-event", { event: { key, act, slot: null, threadKey: null } }, "codex-micro-hid-event");
   }
 
+  /** After push-to-talk stops, wait for the transcription to land in the
+   * composer and submit it. Polls across short evaluate() calls (each well
+   * under the evaluate timeout) so it survives slow transcription, up to a
+   * ~14s ceiling; sends once the text has been non-empty and unchanged for
+   * two consecutive polls. Does nothing if nothing was transcribed. */
+  private async autoSubmitDictation(): Promise<void> {
+    const readComposer = `(() => {
+      const composer = document.querySelector('[contenteditable="true"]');
+      return composer ? (composer.innerText ?? '').trim() : null;
+    })()`;
+    const submit = `(() => {
+      const composer = document.querySelector('[contenteditable="true"]');
+      if (!composer) return false;
+      composer.focus();
+      composer.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
+      }));
+      return true;
+    })()`;
+    let last: string | null = "";
+    let stableCount = 0;
+    for (let i = 0; i < 28; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      let current: string | null;
+      try {
+        current = await this.evaluate<string | null>(readComposer);
+      } catch {
+        return;
+      }
+      if (current && current === last) {
+        if (++stableCount >= 2) {
+          try { await this.evaluate(submit); } catch { /* ignore */ }
+          return;
+        }
+      } else {
+        stableCount = 0;
+      }
+      last = current;
+    }
+  }
+
   async sendJoystick(direction: MicroDirection, distance: 0 | 1): Promise<void> {
     const angle: Record<MicroDirection, number> = { up: 0.75, right: 0, down: 0.25, left: 0.5 };
     await this.dispatch("codex-micro-joystick-event", { event: { angle: angle[direction], distance } }, "codex-micro-joystick-event");
@@ -510,7 +551,10 @@ export class CodexMicroRendererBridge {
       const stopping = this.micHeld;
       this.micHeld = !this.micHeld;
       await this.ensureConnected();
-      const expression = `(async () => {
+      // Fire push-to-talk start/stop and return immediately. Transcription can
+      // take several seconds, longer than one evaluate() timeout, so waiting
+      // for it must not happen inside this call.
+      await this.evaluate(`(async () => {
         const urls = [...new Set([
           ...[...document.querySelectorAll('link[href], script[src]')].map((element) => element.href || element.src),
           ...performance.getEntriesByType('resource').map((entry) => entry.name)
@@ -529,33 +573,14 @@ export class CodexMicroRendererBridge {
         if ((bus.handlers.get(pttType)?.size ?? 0) > 0) {
           bus.dispatchHostMessage({ type: pttType });
         } else {
-          // Older builds: fall back to the native HID dictation key.
           bus.dispatchHostMessage({ type: 'codex-micro-hid-event', event: { key: 'ACT10', act: stopping ? 0 : 1, slot: null, threadKey: null } });
         }
-        if (!stopping) return true;
-        // Auto-send: wait for the transcription to settle in the composer,
-        // then submit it. If nothing was said, do nothing.
-        const composer = document.querySelector('[contenteditable="true"]');
-        if (!composer) return true;
-        const readText = () => (composer.innerText ?? '').trim();
-        let last = '';
-        let stableSince = Date.now();
-        // The bridge's own evaluate timeout is 5s, so settle within 3.8s.
-        const deadline = Date.now() + 3800;
-        while (Date.now() < deadline) {
-          const current = readText();
-          if (current !== last) { last = current; stableSince = Date.now(); }
-          if (current !== '' && Date.now() - stableSince >= 600) break;
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        if (readText() === '') return true;
-        composer.focus();
-        composer.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
-        }));
         return true;
-      })()`;
-      await this.evaluate(expression);
+      })()`);
+      // On stop, poll the composer across several short calls until the
+      // transcription lands and settles, then submit it — matching the
+      // hardware's release-to-send behavior even when transcription is slow.
+      if (stopping) await this.autoSubmitDictation();
       return;
     }
     await this.ensureConnected();
