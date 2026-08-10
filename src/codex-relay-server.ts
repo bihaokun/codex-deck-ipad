@@ -29,7 +29,7 @@ export type RelayServerConfig = {
 };
 
 type RelayControl = Pick<CodexMicroRendererBridge,
-  "refresh" | "sendAgent" | "sendAction" | "sendJoystick" | "sendEncoder" | "adjustReasoning" | "runKeycap" | "consumeRateLimitReset" | "composeText">;
+  "refresh" | "sendAgent" | "sendAction" | "sendJoystick" | "sendEncoder" | "adjustReasoning" | "runKeycap" | "consumeRateLimitReset" | "composeText" | "threadAction">;
 
 export class CodexRelayServer {
   private server?: WebSocketServer;
@@ -371,6 +371,7 @@ export function relayDiscoveryTxt(
 async function executeRelayCommand(control: RelayControl, command: RelayCommand): Promise<void> {
   if (command.kind === "agent") return control.sendAgent(command.slot, command.act, command.threadKey);
   if (command.kind === "compose") return control.composeText(command.slot, command.text, command.threadKey);
+  if (command.kind === "thread") return control.threadAction(command.op, command.slot, command.threadKey);
   if (command.kind === "action") return control.sendAction(command.slot, command.act);
   if (command.kind === "joystick") return control.sendJoystick(command.direction, command.distance);
   if (command.kind === "encoder") return control.sendEncoder(command.act);

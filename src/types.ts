@@ -74,7 +74,7 @@ export type MicroSnapshot = {
   /** Recent local rollout identities used to disambiguate cross-host mirrors. */
   hostSessions?: HostSessionPresence[];
   /** Sidebar threads beyond the six native slots, for larger clients. */
-  sidebarThreads?: { threadKey: string; title: string }[];
+  sidebarThreads?: { threadKey: string; title: string; pinned?: boolean }[];
 };
 
 export type CodexHost = {

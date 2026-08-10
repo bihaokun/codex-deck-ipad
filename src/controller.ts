@@ -139,7 +139,9 @@ export class DeckController {
             () => this.microBridge.runKeycap(keycapId)),
           consumeRateLimitReset: () => runAndInvalidate(() => this.microBridge.consumeRateLimitReset()),
           composeText: (slot: number, text: string, threadKey?: string) => runAndInvalidate(
-            () => this.microBridge.composeText(slot, text, threadKey))
+            () => this.microBridge.composeText(slot, text, threadKey)),
+          threadAction: (op: "toggle-pin" | "archive", slot: number, threadKey: string) => runAndInvalidate(
+            () => this.microBridge.threadAction(op, slot, threadKey))
         };
         if (mobileRelayConfig) {
           this.mobileRelayServer = new CodexRelayServer(

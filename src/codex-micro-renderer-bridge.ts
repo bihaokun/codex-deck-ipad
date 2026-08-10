@@ -309,7 +309,8 @@ const SNAPSHOT_EXPRESSION = `(async () => {
   const sidebarThreads = [...document.querySelectorAll('[data-app-action-sidebar-thread-id]')].slice(0, 24)
     .map((element) => ({
       threadKey: element.getAttribute('data-app-action-sidebar-thread-id'),
-      title: element.getAttribute('data-app-action-sidebar-thread-title') ?? ''
+      title: element.getAttribute('data-app-action-sidebar-thread-title') ?? '',
+      pinned: element.getAttribute('data-app-action-sidebar-thread-pinned') === 'true'
     }))
     .filter((thread) => thread.threadKey);
   return { slots, activeThreadKey, activeThreadTitle, layout, agentSource, lightingAutoOff, theme, ...(usage ? { usage } : {}), ...(sidebarThreads.length ? { sidebarThreads } : {}) };
@@ -443,6 +444,36 @@ export class CodexMicroRendererBridge {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       throw new Error('Codex accepted the text but did not submit it.');
+    })()`;
+    await this.evaluate(expression);
+  }
+
+  /** Activate a thread, then run a native sidebar action on it. The bus
+   * handlers act on the currently active thread, so activation comes first. */
+  async threadAction(op: "toggle-pin" | "archive", slot: number, threadKey: string): Promise<void> {
+    await this.sendAgent(slot, 1, threadKey);
+    await this.sendAgent(slot, 0, threadKey);
+    await this.ensureConnected();
+    const messageType = op === "archive" ? "archive-thread" : "toggle-thread-pin";
+    const expression = `(async () => {
+      const urls = [...new Set([
+        ...[...document.querySelectorAll('link[href], script[src]')].map((element) => element.href || element.src),
+        ...performance.getEntriesByType('resource').map((entry) => entry.name)
+      ])].filter((url) => url.includes('/assets/') && url.endsWith('.js'));
+      let bus = null;
+      for (const url of urls) {
+        try {
+          const namespace = await import(url);
+          bus = Object.values(namespace).find((candidate) => candidate && typeof candidate === 'object' && candidate.handlers instanceof Map && typeof candidate.dispatchHostMessage === 'function');
+          if (bus) break;
+        } catch {}
+      }
+      if (!bus) throw new Error('Codex native event bus was not found.');
+      if ((bus.handlers.get(${JSON.stringify(messageType)})?.size ?? 0) === 0) {
+        throw new Error('Codex does not expose this thread action.');
+      }
+      bus.dispatchHostMessage({ type: ${JSON.stringify(messageType)} });
+      return true;
     })()`;
     await this.evaluate(expression);
   }
