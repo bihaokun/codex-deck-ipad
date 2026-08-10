@@ -4,6 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Codex Deck</title>
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#090c12" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22512%22%20height%3D%22512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22%230b0f16%22/%3E%3Crect%20x%3D%2296%22%20y%3D%22150%22%20width%3D%22140%22%20height%3D%2290%22%20rx%3D%2220%22%20fill%3D%22%232187fa%22/%3E%3Crect%20x%3D%22276%22%20y%3D%22150%22%20width%3D%22140%22%20height%3D%2290%22%20rx%3D%2220%22%20fill%3D%22%232ed470%22/%3E%3Crect%20x%3D%2296%22%20y%3D%22272%22%20width%3D%22140%22%20height%3D%2290%22%20rx%3D%2220%22%20fill%3D%22%23ffa021%22/%3E%3Crect%20x%3D%22276%22%20y%3D%22272%22%20width%3D%22140%22%20height%3D%2290%22%20rx%3D%2220%22%20fill%3D%22%232d3542%22/%3E%3C/svg%3E" />
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%20%22Codex%20Deck%22%2C%20%22short_name%22%3A%20%22Codex%20Deck%22%2C%20%22display%22%3A%20%22fullscreen%22%2C%20%22orientation%22%3A%20%22landscape%22%2C%20%22background_color%22%3A%20%22%23090c12%22%2C%20%22theme_color%22%3A%20%22%23090c12%22%2C%20%22start_url%22%3A%20%22.%22%2C%20%22scope%22%3A%20%22.%22%2C%20%22icons%22%3A%20%5B%7B%22src%22%3A%20%22data%3Aimage/svg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A//www.w3.org/2000/svg%2522%2520width%253D%2522512%2522%2520height%253D%2522512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%2522112%2522%2520fill%253D%2522%25230b0f16%2522/%253E%253Crect%2520x%253D%252296%2522%2520y%253D%2522150%2522%2520width%253D%2522140%2522%2520height%253D%252290%2522%2520rx%253D%252220%2522%2520fill%253D%2522%25232187fa%2522/%253E%253Crect%2520x%253D%2522276%2522%2520y%253D%2522150%2522%2520width%253D%2522140%2522%2520height%253D%252290%2522%2520rx%253D%252220%2522%2520fill%253D%2522%25232ed470%2522/%253E%253Crect%2520x%253D%252296%2522%2520y%253D%2522272%2522%2520width%253D%2522140%2522%2520height%253D%252290%2522%2520rx%253D%252220%2522%2520fill%253D%2522%2523ffa021%2522/%253E%253Crect%2520x%253D%2522276%2522%2520y%253D%2522272%2522%2520width%253D%2522140%2522%2520height%253D%252290%2522%2520rx%253D%252220%2522%2520fill%253D%2522%25232d3542%2522/%253E%253C/svg%253E%22%2C%20%22sizes%22%3A%20%22any%22%2C%20%22type%22%3A%20%22image/svg%2Bxml%22%2C%20%22purpose%22%3A%20%22any%20maskable%22%7D%5D%7D" />
 <style>
   :root {
     --canvas: #090c12; --panel: #161a22; --key: #232a35; --key-hi: #2d3542;
@@ -17,10 +23,22 @@
     min-height: 100vh; padding: 18px 16px 40px; user-select: none;
   }
   .wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  @media (orientation: landscape) and (min-width: 900px) {
+    body { padding: 14px 20px 20px; }
+    .wrap { max-width: 1240px; display: grid; grid-template-columns: 1.5fr 1fr;
+      grid-template-areas: "head head" "deck chips" "usage chips"; align-items: start; column-gap: 20px; }
+    header { grid-area: head; }
+    .deck { grid-area: deck; }
+    #chips { grid-area: chips; align-content: start; max-height: calc(100vh - 90px); overflow-y: auto; }
+    .usage { grid-area: usage; }
+    .chip { max-width: 100%; }
+  }
   header { display: flex; align-items: center; gap: 10px; }
   header h1 { font-size: 19px; letter-spacing: 3px; margin: 0; font-weight: 800; }
   header .sub { color: var(--dim); font-size: 11px; letter-spacing: 2px; }
-  #conn { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--dim); }
+  #fs { margin-left: auto; background: none; border: 1px solid #ffffff20; color: var(--dim);
+    width: 34px; height: 34px; border-radius: 9px; font-size: 16px; cursor: pointer; }
+  #conn { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--dim); }
   #conn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); }
   #conn.ok .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
 
@@ -123,6 +141,7 @@
 <div class="wrap">
   <header>
     <h1>CODEX</h1><span class="sub">DECK · WEB</span>
+    <button id="fs" title="全屏">⛶</button>
     <div id="conn"><span class="dot"></span><span id="connText">连接中…</span></div>
   </header>
 
@@ -376,6 +395,17 @@
 
   // Tap the connection indicator to re-enter the token at any time.
   $("conn").onclick = () => askToken();
+
+  $("fs").onclick = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        try { await screen.orientation.lock("landscape"); } catch {}
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch {}
+  };
 
   connect();
 })();
