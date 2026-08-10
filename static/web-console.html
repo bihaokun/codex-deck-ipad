@@ -151,7 +151,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const norm = (v) => v ? v.replace(/^[a-z]+:/i, "") : v;
-  let ws = null, snapshot = null, hostName = "", reqId = 0, macListening = false;
+  let ws = null, snapshot = null, hostName = "", reqId = 0, macListening = false, gotReady = false;
   const pending = new Map();
 
   // ---- token ----
@@ -163,6 +163,7 @@
   const token = () => localStorage.getItem("codex-deck-token") || "";
 
   function askToken() {
+    $("tokenInput").value = token();
     $("tokenDialog").showModal();
     $("tokenSave").onclick = () => {
       const v = $("tokenInput").value.trim();
@@ -179,14 +180,24 @@
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}`);
     setConn(false, "连接中…");
+    gotReady = false;
     ws.onopen = () => ws.send(JSON.stringify({ type: "auth", protocol: 1, token: token() }));
     ws.onmessage = (e) => handle(JSON.parse(e.data));
-    ws.onclose = () => { setConn(false, "已断开,重连中…"); setTimeout(connect, 2500); };
+    ws.onclose = () => {
+      if (!gotReady) {
+        // Closed before authentication succeeded — almost always a bad token.
+        setConn(false, "令牌无效,请重新输入");
+        askToken();
+        return;
+      }
+      setConn(false, "已断开,重连中…");
+      setTimeout(connect, 2500);
+    };
     ws.onerror = () => {};
   }
 
   function handle(m) {
-    if (m.type === "ready") { hostName = m.host?.hostName ?? ""; setConn(true, hostName); }
+    if (m.type === "ready") { gotReady = true; hostName = m.host?.hostName ?? ""; setConn(true, hostName); }
     if (m.type === "snapshot") { snapshot = m.snapshot; render(); }
     if (m.type === "result") {
       const p = pending.get(m.requestId); pending.delete(m.requestId);
@@ -329,6 +340,9 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => (t.className = ""), 2600);
   }
+
+  // Tap the connection indicator to re-enter the token at any time.
+  $("conn").onclick = () => askToken();
 
   connect();
 })();
