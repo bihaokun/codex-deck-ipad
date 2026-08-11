@@ -24,12 +24,21 @@
   }
   .wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
   @media (orientation: landscape) and (min-width: 900px) {
-    body { padding: 14px 20px 20px; }
-    .wrap { max-width: 1240px; display: grid; grid-template-columns: 1.5fr 1fr;
-      grid-template-areas: "head head" "deck chips" "usage chips"; align-items: start; column-gap: 20px; }
+    html, body { height: 100%; overflow: hidden; }
+    body { padding: 12px 18px; }
+    .wrap { max-width: none; height: 100%; display: grid; column-gap: 18px; row-gap: 12px;
+      grid-template-columns: 1.7fr 1fr; grid-template-rows: auto 1fr auto;
+      grid-template-areas: "head head" "deck chips" "deck usage"; align-items: stretch; }
     header { grid-area: head; }
-    .deck { grid-area: deck; }
-    #chips { grid-area: chips; align-content: start; max-height: calc(100vh - 90px); overflow-y: auto; }
+    /* Left column: keyboard fills the whole height, keys grow with it. */
+    .deck { grid-area: deck; height: 100%; }
+    .agents { flex: 1; min-height: 0; }
+    .key { aspect-ratio: auto; height: 100%; }
+    .key .title { font-size: clamp(15px, 2.4vh, 22px); -webkit-line-clamp: 2; }
+    .actions { min-height: 68px; }
+    .micbar { min-height: 72px; }
+    /* Right column: switch chips scroll above, capacity pinned at the bottom. */
+    #chips { grid-area: chips; align-content: start; overflow-y: auto; min-height: 0; }
     .usage { grid-area: usage; }
     .chip { max-width: 100%; }
   }
